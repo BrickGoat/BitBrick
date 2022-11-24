@@ -1,5 +1,7 @@
 import bencodepy
 import hashlib
+import secrets
+import string
 
 def decodeTorrent(path):
     metaInfo = bencodepy.Bencode().read(path)
@@ -12,7 +14,9 @@ def makeRequest(info, announce):
     encodedInfo = bencodepy.encode(info)
     h.update(encodedInfo)
     infoHash = h.digest()
-    
+    sequence = string.ascii_letters + string.digits
+    randStr = ''.join(secrets.choice(sequence) for i in range(12))
+    peerId = f"-BB0001-{randStr}"
 
 def downloadTorrent(path):
     info, announce = decodeTorrent(path)

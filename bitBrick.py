@@ -38,11 +38,25 @@ def makeAnnounceRequest(info, announce_urls):
         port = announce_urls[i][1]
         connection_packet, trans_id = getConnectPack()
         resp = makeUdpConnection(name, port, connection_packet)
-        #print(resp)
+        print(resp)
         if resp is None or readConnectionResp(resp, trans_id) is None:
             #announce_urls.pop(i)
             continue
         connection_id = readConnectionResp(resp, trans_id)
+        announcement_pack, trans_id = getAnnouncePack(connection_id, infoHash, peerId)
+        url = announce_urls.pop(i)
+        announce_urls.insert(0, url)
+        for i in range(len(announce_urls)):
+            name = announce_urls[i][0] 
+            port = announce_urls[i][1]
+            resp = makeUdpConnection(name, port, announcement_pack)
+            if resp is None or readAnnounceResp(resp, trans_id) is None:
+                continue
+            peers = readAnnounceResp(resp, trans_id)
+            print(peers)
+            raise Exception("Placeholder")
+
+
 
 def getConnectPack():
     protocol_id = 0x41727101980
@@ -51,13 +65,39 @@ def getConnectPack():
     trans_id = ''.join(secrets.choice(sequence) for i in range(4))
     return struct.pack(">QII", protocol_id, action, int(trans_id)), trans_id
 
+def getAnnouncePack(connection_id, info_hash, peer_id,left =0, uploaded=0,  downloaded=0, event=3):
+    sequence = string.digits
+    action = 1
+    trans_id = ''.join(secrets.choice(sequence) for i in range(4))
+    print(info_hash)
+    return struct.pack(">QII20s20sQQQIIIiH", connection_id, action, int(trans_id), info_hash, peer_id, downloaded, left, uploaded, event, 0, 0, -1, 6881), trans_id
+
 def readConnectionResp(resp, id):
     action, trans_id, connect_id = struct.unpack(">IIQ", resp)
     print(action)
-    print(f"t: {int(trans_id)}, t_: {int(id)}")
     if action == 0 and int(trans_id) == int(id):
         return connect_id
     return None
+
+def readAnnounceResp(resp, id):
+    peerList = []
+    action, trans_id = struct.unpack(">II", resp[:8])
+    if action != 1 or int(trans_id) != int(id):
+        if action == 3:
+            print(resp[8:])
+        return None
+    peers = resp[20:]
+    peerLen = 6
+    peerCount = int(len(peers)/6)
+    print(peerCount)
+    for i in range(peerCount):
+        offset = i * peerLen
+        peerDict = {}
+        peerDict["ip"], peerDict["port"] = struct.unpack(">IH", peers[offset:offset+6])
+        peerDict["ip"] = socket.inet_ntoa(struct.pack(">I", peerDict["ip"]))
+        peerList.append(peerDict)
+    return peerList
+    
 
 def makeUdpConnection(name, port, packet):
     buffSize = 4096

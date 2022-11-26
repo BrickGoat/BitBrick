@@ -38,7 +38,11 @@ def makeAnnounceRequest(info, announce_urls):
         port = announce_urls[i][1]
         connection_packet, trans_id = getConnectPack()
         resp = makeUdpConnection(name, port, connection_packet)
-
+        #print(resp)
+        if resp is None or readConnectionResp(resp, trans_id) is None:
+            #announce_urls.pop(i)
+            continue
+        connection_id = readConnectionResp(resp, trans_id)
 
 def getConnectPack():
     protocol_id = 0x41727101980
@@ -47,6 +51,13 @@ def getConnectPack():
     trans_id = ''.join(secrets.choice(sequence) for i in range(4))
     return struct.pack(">QII", protocol_id, action, int(trans_id)), trans_id
 
+def readConnectionResp(resp, id):
+    action, trans_id, connect_id = struct.unpack(">IIQ", resp)
+    print(action)
+    print(f"t: {int(trans_id)}, t_: {int(id)}")
+    if action == 0 and int(trans_id) == int(id):
+        return connect_id
+    return None
 
 def makeUdpConnection(name, port, packet):
     buffSize = 4096

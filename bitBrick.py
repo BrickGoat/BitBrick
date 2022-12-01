@@ -9,7 +9,7 @@ import socket, struct
 # Main function
 def downloadTorrent(path):
     info, announce_urls, length = decodeTorrent(path)
-    req = makeAnnounceRequest(info, [('tracker.opentrackr.org', 1337)], length)
+    makeAnnounceRequest(info, announce_urls, length)
 
 # Decode bencoded torrent file and return info key, list of udp trackers, and total size of files
 def decodeTorrent(path):
@@ -71,7 +71,12 @@ def makeAnnounceRequest(info, announce_urls, length):
                 continue
             peers = readAnnounceResp(resp, trans_id)
             print(peers)
-            raise Exception("Placeholder")
+            # Make peer connection
+            for peer in peers:
+                connection = makeHandshake(peer[0], peer[1], infoHash, peerId)
+                if not connection:
+                    continue
+                # Start exchange of pieces 
 
 # Creates udp tracker connection packet
 def getConnectPack():
@@ -138,5 +143,35 @@ def sendUdpPacket(name, port, packet):
             print(e)
     return None
     
+# Make initial handshake with peer
+def makeHandshake(name, port, info_hash, peer_id):
+    packetfmt = ">B19s8s20s20s"
+    pstr = b"BitTorrent protocol"
+    pstrlen = 19
+    reserved = 0
+    packet = struct.pack(packetfmt, pstrlen, pstr, reserved, info_hash, peer_id)
+    resp = sendTCPPacket(name, port, packet)
+    if resp is None:
+        return 0
+    pstr, pstrlen, reserved, info_hash_, peer_id = struct.unpack(packetfmt, resp)
+    # specification says drop if peer_id doesn't match, but trackers don't provide peer_id, so checking info_hash instead
+    if info_hash == info_hash_:
+        return 1
+    return 0
+    
+# Open tcp connection and send packet
+def sendTCPPacket(name, port, packet):
+    try:
+        buffSize = 4096
+        client = socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM)
+        client.connect((name, port))
+        client.send(packet)
+        resp = client.recv(buffSize)
+        client.close()
+        return resp
+    except Exception as e:
+        print(e)
+        return 0
+
 
 downloadTorrent("./cosmos-laundromat.torrent")
